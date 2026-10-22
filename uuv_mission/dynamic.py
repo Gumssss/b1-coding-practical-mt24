@@ -104,10 +104,10 @@ class ClosedLoop:
         self.controller = controller
 
     def simulate(self, mission: Mission, disturbances: np.ndarray) -> Trajectory:
-        """Simulate using controller.PD_control_action(reference - observation).
+        """Simulate using controller.control_action(reference - observation).
 
         Use a fresh controller for each independent mission so its previous
-        error starts at zero. The controller time period should match plant.dt.
+        error starts at zero.
         """
 
         T = len(mission.reference)
