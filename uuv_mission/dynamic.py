@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from .terrain import generate_reference_and_limits
 from .control import PDController
 
@@ -75,9 +76,26 @@ class Mission:
         return cls(reference, cave_height, cave_depth)
 
     @classmethod
-    def from_csv(cls, file_name: str):
-        # You are required to implement this method
-        pass
+    def from_csv(cls, file_name: str = "data/mission.csv") -> Mission:
+        """Create a mission from a CSV with reference and cave-limit columns."""
+        data = pd.read_csv(file_name)
+        required_columns = ("reference", "cave_height", "cave_depth")
+        missing_columns = [column for column in required_columns if column not in data.columns]
+        if missing_columns:
+            raise ValueError(
+                f"Mission CSV is missing required column(s): {', '.join(missing_columns)}"
+            )
+        if data.empty:
+            raise ValueError("Mission CSV must contain at least one row")
+
+        values = {
+            column: data[column].to_numpy(dtype=float)
+            for column in required_columns
+        }
+        if not all(np.isfinite(column_values).all() for column_values in values.values()):
+            raise ValueError("Mission CSV values must all be finite numbers")
+
+        return cls(**values)
 
 
 class ClosedLoop:
@@ -85,7 +103,12 @@ class ClosedLoop:
         self.plant = plant
         self.controller = controller
 
-    def simulate(self,  mission: Mission, disturbances: np.ndarray) -> Trajectory:
+    def simulate(self, mission: Mission, disturbances: np.ndarray) -> Trajectory:
+        """Simulate using controller.PD_control_action(reference - observation).
+
+        Use a fresh controller for each independent mission so its previous
+        error starts at zero. The controller time period should match plant.dt.
+        """
 
         T = len(mission.reference)
         if len(disturbances) < T:
@@ -99,10 +122,9 @@ class ClosedLoop:
         for t in range(T):
             positions[t] = self.plant.get_position()
             observation_t = self.plant.get_depth()
-            # Control code start
+            reference_t = mission.reference[t]
             error_t = reference_t - observation_t
             actions[t] = self.controller.control_action(error_t)
-            # Control code end
             self.plant.transition(actions[t], disturbances[t])
 
         return Trajectory(positions)
